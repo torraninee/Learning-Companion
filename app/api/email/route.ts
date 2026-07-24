@@ -1,7 +1,7 @@
 export async function POST(request: Request) {
     const information = await request.json()
-    const apiKey = process.env.OPENROUTER_API_KEY
-    const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", 
+    const apiKey = process.env.GROQ_API_KEY
+    const openRouterResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", 
         {
             method: "POST",
             headers: {
@@ -9,7 +9,7 @@ export async function POST(request: Request) {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                model: "nvidia/nemotron-3-super-120b-a12b:free",
+                model: "llama-3.3-70b-versatile",
                 messages: [
                     {
                         role: "user",
