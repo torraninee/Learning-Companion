@@ -21,6 +21,8 @@ export default function LoginPage() {
         setMessageType(type)
     }
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isResending, setIsResending] = useState(false);
+    const [email, setEmail] = useState("");
 
     async function handleLogin(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
@@ -93,6 +95,32 @@ export default function LoginPage() {
             return;
         }
     }
+
+
+    async function handleResendConfirmation() {
+        const cleanedEmail = email.trim();
+
+        if (cleanedEmail === "") {
+            showMessage("Enter your email before resending the confirmation.", "error")
+            return;
+        }
+
+        setMessage("");
+        setMessageType("");
+        setIsResending(true);
+
+        const { error: resendError } = await supabase.auth.resend({type: "signup", email: cleanedEmail, options: {emailRedirectTo: "http://localhost:3000/auth/confirm"}});
+
+        if (resendError) {
+            showMessage(resendError.message, "error")
+            setIsResending(false);
+            return;
+        };
+
+        showMessage("A new confirmation email was sent. Please check your inbox.", "success")
+        setIsResending(false);
+    }
+        
     return(
         <main>
             <Link href="/">Back to Home</Link>
@@ -105,6 +133,8 @@ export default function LoginPage() {
                         type="email"
                         id="login-email"
                         name="email"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
                         placeholder="Enter your email"
                         required
                     />
@@ -119,13 +149,14 @@ export default function LoginPage() {
                     />
 
                     <button type="submit" disabled={isSubmitting}>{isSubmitting ? "Logging In..." : "Log In"}</button>
+                    <button type="button" onClick={handleResendConfirmation} disabled={isResending}>{isResending ? "Sending confirmation email..." : "Resend confirmation email"}</button>
                 </form>
                 {message !== "" && (
-                    <p id="login=message" className={messageType}>{message}</p>
-                )};
+                    <p id="login-message" className={messageType}>{message}</p>
+                )}
                 <p className="signup-text">Don&apos;t have an account? {" "} <Link href="/signup">Sign up!</Link>
                 </p>
             </div>
         </main>
     )
-    }
+}

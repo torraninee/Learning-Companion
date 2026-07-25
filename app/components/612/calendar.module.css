@@ -1,0 +1,41 @@
+.calendar {
+    width: 100%;
+    padding: 24px;
+}
+
+.calendarheader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.monthTitle {
+    font-size: 2rem;
+    text-align: center;
+}
+
+.weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+}
+
+.calendardays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-auto-rows: minmax(120px, auto);
+}
+
+.calendarday {
+    min-height: 120px;
+    border: 1px solid #cccccc;
+    padding: 8px;
+}
+
+.calendarday-hover {
+    background-color: #f7f7fb;
+}
+
+.emptyday {
+    min-height: 120px;
+    border: 1px solid #cccccc;
+}

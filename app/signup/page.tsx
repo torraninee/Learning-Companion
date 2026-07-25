@@ -8,7 +8,7 @@ import { FormEvent, useState } from "react";
 import {useRouter} from "next/navigation";
 
 //roles
-type Role = "k5" | "612" | "parent";
+type Role = "612" | "parent-k5";
 
 export default function SignupPage() {
     //navigation functions
@@ -46,7 +46,7 @@ export default function SignupPage() {
             return;
         }
 
-        if (rolevalue === "k5" || rolevalue === "612" || rolevalue === "parent") {
+        if (rolevalue !== "parent-k5" && rolevalue !== "612") {
             showMessage("Please select a valid role.", "error");
             setIsSubmitting(false);
             return;
@@ -75,6 +75,15 @@ export default function SignupPage() {
         const { data: signupData, error: signupError } = await supabase.auth.signUp({
             email: email,
             password: password,
+
+            options: {
+                emailRedirectTo: "http://localhost:3000/auth/confirm",
+                data: {
+                    name,
+                    username,
+                    role,
+                },
+            }
         })
 
         if(signupError) {
@@ -91,30 +100,14 @@ export default function SignupPage() {
             return;
         }
 
-        const { error: profileError } = await supabase.from("profiles").insert({
-            id: newAuthUser.id,
-            name, 
-            username,
-            role, 
-            survey_completed: false,
-        })
-
-        if (profileError) {
-            console.error("Profile error:", profileError);
-            if(profileError.message.toLowerCase().includes("username")) {
-                showMessage("An account with this username already exists.", "error")
-                setIsSubmitting(false);
-                return;
-            } else {
-                showMessage(`Your login was created, but your profile could not be saved: ${profileError.message}`, "error")
-                setIsSubmitting(false);
-                return;
-            };
-        }
 
         form.reset();
 
-        showMessage("Account created!", "success");
+        if (signupData.session) {
+            showMessage("Account created!", "success");
+        } else {
+            showMessage("Account created! Please check your email to confirm your account.", "success")
+        }
 
         setIsSubmitting(false);
 
@@ -184,22 +177,19 @@ export default function SignupPage() {
 
             <label htmlFor="role">I am a:</label>
 
-            <select id="role" defaultValue="" required>
+            <select id="role" name="role" defaultValue="" required>
                 <option value="" disabled>
                 Select your role
                 </option>
 
-                <option value="k5">
-                Kindergarten-Grade 5 Student
+                <option value="parent-k5">
+                Parent (for Kindergarten-5th Grade Students)
                 </option>
 
                 <option value="612">
                 Grade 6-12 Student
                 </option>
 
-                <option value="parent">
-                Kindergarten-Grade 5 Parent
-                </option>
             </select>
 
             <button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating Account..." : "Create Account"}</button>
