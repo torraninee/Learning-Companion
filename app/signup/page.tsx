@@ -1,38 +1,34 @@
 //imports
 "use client";
 
-//load saved users
-const users: User[] = JSON.parse(localStorage.getitem("users") || "[]");
 
+import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import {useRouter} from "next/navigation";
 
 //roles
 type Role = "k5" | "612" | "parent";
-type User = {
-    id: number;
-    name: string;
-    email: string;
-    username: string;
-    password: string;
-    role: Role;
-    hasADHD: boolean;
-    surveycompleted: boolean;
-};
 
 export default function SignupPage() {
     //navigation functions
     const router = useRouter();
     const [message, setMessage] = useState("");
     const [messageType, setMessageType] = useState<"" | "error" | "success">("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
     function showMessage(text: string, type: "error" | "success") {
         setMessage(text);
         setMessageType(type)
     };
 
-    function handleSignup(event: FormEvent<HTMLFormElement>) {
+    async function handleSignup(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
+
+        setMessage("");
+        setMessageType("");
+        setIsSubmitting(true);
+
         const form = event.currentTarget;
         //collect form data
         const formData = new FormData(form);
@@ -44,67 +40,87 @@ export default function SignupPage() {
         const confirmpassword = formData.get("confirmPassword")?.toString() ?? "";
         const rolevalue = formData.get("role")?.toString() ?? "";
 
-        if (rolevalue === "k5" || rolevalue === "612" || rolevalue === "parent") {
-            showMessage("Please select a valid role.", "error")
-        }
-
         if(name==="" || email==="" || username==="" || password==="" || confirmpassword==="" || rolevalue===""){
             showMessage("Please fill in every field.", "error");
+            setIsSubmitting(false);
+            return;
+        }
+
+        if (rolevalue === "k5" || rolevalue === "612" || rolevalue === "parent") {
+            showMessage("Please select a valid role.", "error");
+            setIsSubmitting(false);
             return;
         }
 
         const role = rolevalue as Role;
 
-        if (username.length < 6 || password.length < 6) {
+        if (username.length < 6) {
             showMessage("Your username and password must contain at least 6 characters.", "error")
+            setIsSubmitting(false);
+            return;
+        }
+
+        if (password.length < 6) {
+            showMessage("Your username and password must contain at least 6 characters.", "error")
+            setIsSubmitting(false);
             return;
         }
 
         if (password !== confirmpassword) {
             showMessage("The passwords do not match. Please re-enter your password.", "error")
+            setIsSubmitting(false);
             return;
         }
 
-        //check username already exists
-        const usernameAlreadyExists = users.some((user) => {
-            return user.username === username;
-        });
-
-        if (usernameAlreadyExists) {
-            showMessage("An account with this username already exists.", "error");
-            return;
-        }
-
-        //check if email already exists 
-        const emailAlreadyExists = users.some((user) => {
-            if(user.role === role) {
-                return user.email === email;
-        }})
-
-        if (emailAlreadyExists) {
-            showMessage("An account with this email already exists", "error");
-            return;
-        }
-
-        //creates new user
-        const newUser: User = {
-            id: Date.now(),
-            name: name,
+        const { data: signupData, error: signupError } = await supabase.auth.signUp({
             email: email,
-            username: username,
             password: password,
-            role: role,
-            hasADHD: false,
-            surveycompleted: false,
+        })
+
+        if(signupError) {
+            showMessage(signupError.message, "error");
+            setIsSubmitting(false);
+            return;
         }
 
-        //save user
-        users.push(newUser);
-        localStorage.setItem("users", JSON.stringify(users))
+        const newAuthUser = signupData.user;
 
-        form.reset()
+        if(!newAuthUser) {
+            showMessage("The account could not be created. Please try again.", "error");
+            setIsSubmitting(false);
+            return;
+        }
+
+        const { error: profileError } = await supabase.from("profiles").insert({
+            id: newAuthUser.id,
+            name, 
+            username,
+            role, 
+            survey_completed: false,
+        })
+
+        if (profileError) {
+            console.error("Profile error:", profileError);
+            if(profileError.message.toLowerCase().includes("username")) {
+                showMessage("An account with this username already exists.", "error")
+                setIsSubmitting(false);
+                return;
+            } else {
+                showMessage(`Your login was created, but your profile could not be saved: ${profileError.message}`, "error")
+                setIsSubmitting(false);
+                return;
+            };
+        }
+
+        form.reset();
 
         showMessage("Account created!", "success");
+
+        setIsSubmitting(false);
+
+        setTimeout(() => {
+            router.push("/login")
+        }, 1500);
     };
 
     //show HTML form
@@ -122,6 +138,7 @@ export default function SignupPage() {
             <input
                 type="text"
                 id="signup-name"
+                name="name"
                 placeholder="Enter your name"
                 required
             />
@@ -130,6 +147,7 @@ export default function SignupPage() {
             <input
                 type="email"
                 id="signup-email"
+                name="email"
                 placeholder="Enter your email"
                 required
             />
@@ -138,6 +156,7 @@ export default function SignupPage() {
             <input
                 type="text"
                 id="signup-username"
+                name="username"
                 placeholder="Enter your username (minimum 6 letters)"
                 minLength={6}
                 required
@@ -147,6 +166,7 @@ export default function SignupPage() {
             <input
                 type="password"
                 id="signup-password"
+                name="password"
                 placeholder="Create a password (minimum 6 letters)"
                 minLength={6}
                 required
@@ -156,6 +176,7 @@ export default function SignupPage() {
             <input
                 type="password"
                 id="confirm-password"
+                name="confirmPassword"
                 placeholder="Enter your password again"
                 minLength={6}
                 required
@@ -181,12 +202,12 @@ export default function SignupPage() {
                 </option>
             </select>
 
-            <button type="submit">Create Account</button>
+            <button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating Account..." : "Create Account"}</button>
             </form>
 
-            <p id="signup-message" className="error">{message}</p>
-            <p className="success">{message}</p>
-
+            {message !== "" && (
+                <p id="signup-message" className={messageType}>{message}</p>
+            )}
             <p className="switch-page">
             Already have an account?{" "}
             <Link href="/login">Log in</Link>

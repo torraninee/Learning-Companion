@@ -3,24 +3,13 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase"
 
-//load saved users
-const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
-const currentUser: User | null = JSON.parse(localStorage.getItem("currentuser") || "null")
+type Role = "612" | "parent-k5";
 
-export const metadata = {title: "Login",}
-
-type Role = "k5" | "612" | "parent";
-type User = {
-    id: number;
-    name: string;
-    email: string;
-    username: string;
-    password: string;
-    role: Role;
-    hasADHD: boolean,
-    surveycompleted: boolean;
-};
+type Profile = {
+    role: Role,
+}
 
 export default function LoginPage() {
     //basic functions
@@ -31,49 +20,78 @@ export default function LoginPage() {
         setMessage(text);
         setMessageType(type)
     }
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    function handleLogin(event: FormEvent<HTMLFormElement>) {
+    async function handleLogin(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
+
+        setMessage("");
+        setMessageType("");
+        setIsSubmitting(true);
+
         const form = event.currentTarget;
         //collect form data
         const formData = new FormData(form);
     
-
         //reading inputs
-        const username = formData.get("username")?.toString().trim() ?? "";
+        const email = formData.get("email")?.toString().trim() ?? "";
         const password = formData.get("password")?.toString() ?? "";
 
         //check if requirements met
-         if(username==="" || password===""){
+         if(email==="" || password===""){
             showMessage("Please fill in every field.", "error");
+            setIsSubmitting(false);
             return;
         }
 
-        if (username.length < 6) {
-            showMessage("Your username and password must contain at least 6 characters.", "error")
+        if (email.length < 6) {
+            showMessage("Your email must contain at least 6 characters.", "error");
+            setIsSubmitting(false);
             return;
         }
 
-        //save data
-        const accountExists = users.find((user) => {
-             if(user.username === username && user.password === password) {
-                return user;
-             }
-        })
+        if (password.length < 6) {
+            showMessage("Your password must contain at least 6 characters.", "error");
+            setIsSubmitting(false);
+            return;
+        }
 
-        if(accountExists) {
-            localStorage.setItem("currentuser", JSON.stringify(accountExists))
-            if(accountExists.role === "k5") {
-                router.push("/k5-dashboard")
-            } else if(accountExists.role === "612") {
-                router.push("/612-dashboard")
-            } else if(accountExists.role === "parent") {
-                router.push("/parent-dashboard")
-            }
-        } 
-        else {
-            showMessage("An account with your username and password does not exist. Please check to see if you have the correct details, or create an account.", "error")
-            }
+        const { data: loginData, error: loginError, } = await supabase.auth.signInWithPassword({email, password});
+
+        if(loginError) {
+            showMessage("The email or password is incorrect.", "error");
+            setIsSubmitting(false)
+            return;
+        }
+
+        const loggedInUser = loginData.user;
+
+        if(!loggedInUser) {
+            showMessage("Login was unsuccessful. Please try again.", "error")
+            setIsSubmitting(false);
+            return;
+        }
+
+        const { data: profileData, error: profileError, } = await supabase
+            .from("profiles").select("role").eq("id", loggedInUser.id).single<Profile>();
+
+        if(profileError || !profileData) {
+            showMessage("You logged in, but your profile could not be found.", "error");
+            setIsSubmitting(false);
+            return;
+        };
+
+        showMessage("Login successful!", "success");
+
+        if(profileData.role === "parent-k5") {
+            router.push("/parent-k5-dashboard");
+        } else if (profileData.role === "612") {
+            router.push("/612-dashboard");
+        } else {
+            showMessage("Your account does not have a valid role.", "error");
+            setIsSubmitting(false);
+            return;
+        }
     }
     return(
         <main>
@@ -86,6 +104,7 @@ export default function LoginPage() {
                     <input
                         type="email"
                         id="login-email"
+                        name="email"
                         placeholder="Enter your email"
                         required
                     />
@@ -94,13 +113,16 @@ export default function LoginPage() {
                     <input
                         type="password"
                         id="login-password"
+                        name="password"
                         placeholder="Enter your password"
                         required
                     />
 
-                    <button type="submit">Log In</button>
+                    <button type="submit" disabled={isSubmitting}>{isSubmitting ? "Logging In..." : "Log In"}</button>
                 </form>
-                <p id="login=message" className="error"></p>
+                {message !== "" && (
+                    <p id="login=message" className={messageType}>{message}</p>
+                )};
                 <p className="signup-text">Don&apos;t have an account? {" "} <Link href="/signup">Sign up!</Link>
                 </p>
             </div>
